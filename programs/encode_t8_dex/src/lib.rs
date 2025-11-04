@@ -1,5 +1,8 @@
+pub mod errors;
+
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Mint, Token, TokenAccount};
+use errors::ErrorCode;
 
 declare_id!("2wDXpw2R48Miu3PuFxMktrcx1w7QkyGa17CcB3Ev6VY7");
 
@@ -19,6 +22,24 @@ pub mod encode_t8_dex {
             "Pool initialized for mints: {} and {}",
             pool.mint_a,
             pool.mint_b
+        );
+
+        Ok(())
+    }
+
+    pub fn add_liquidity(ctx: Context<AddLiquidity>, amount_a: u64, amount_b: u64) -> Result<()> {
+        if amount_a == 0 || amount_b == 0 {
+            // TODO: more logic
+            return err!(ErrorCode::ZeroAmount);
+        }
+        token::transfer(ctx.accounts.transfer_a_context(), amount_a)?;
+
+        token::transfer(ctx.accounts.transfer_b_context(), amount_b)?;
+
+        msg!(
+            "Liquidity added: {} of token A, {} of token B",
+            amount_a,
+            amount_b
         );
 
         Ok(())
@@ -73,4 +94,34 @@ pub struct InitializePool<'info> {
 
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct AddLiquidity<'info> {
+    // Pool account where liquidity is being added to
+    pub pool: Account<'info, Pool>,
+
+    // Token vaults
+    #[account(
+        mut,
+        // check that this is really the address stored in the pool account
+        address = pool.token_vault_a
+    )]
+    pub token_vault_a: Account<'info, TokenAccount>,
+    #[account(
+        mut,
+        address = pool.token_vault_b
+    )]
+    pub token_vault_b: Account<'info, TokenAccount>,
+
+    #[account(mut)]
+    pub user: Signer<'info>,
+
+    // User token accounts
+    #[account(mut)]
+    pub user_token_account_a: Account<'info, TokenAccount>,
+    #[account(mut)]
+    pub user_token_account_b: Account<'info, TokenAccount>,
+
+    pub token_program: Program<'info, Token>,
 }
