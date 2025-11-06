@@ -33,14 +33,14 @@ pub struct InitializePool<'info> {
         // 8 byte       for Anchor
         // 32 byte x 5  for 5 Pubkeys
         // 1 byte       for bump
-        space = 8 + 32 * 5
+        space = 8 + (32 * 5) + 1
     )]
     pub pool: Account<'info, Pool>,
 
     #[account(
         init,
         payer = payer,
-        seeds = [b"lp_mint", pool.key().as_ref()],
+        seeds = [b"lp_mint", mint_a.key().as_ref(), mint_b.key().as_ref()],
         bump,
         mint::decimals = 6,
         mint::authority = pool
