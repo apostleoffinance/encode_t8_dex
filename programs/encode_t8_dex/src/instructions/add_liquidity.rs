@@ -57,7 +57,7 @@ pub struct AddLiquidity<'info> {
     #[account(mut)]
     pub user: Signer<'info>,
 
-    // Счета пользователя для токенов A и B
+    // User token accounts
     #[account(mut)]
     pub user_token_account_a: Account<'info, TokenAccount>,
     #[account(mut)]
@@ -107,7 +107,7 @@ impl<'info> AddLiquidity<'info> {
             MintTo {
                 mint: self.lp_mint.to_account_info(),
                 to: self.user_lp_token_account.to_account_info(),
-                authority: self.pool.to_account_info(), // Просто передаем PDA
+                authority: self.pool.to_account_info(),
             },
         )
     }
