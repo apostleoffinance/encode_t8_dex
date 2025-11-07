@@ -77,7 +77,7 @@ describe("encode_t8_dex", () => {
 
     // --- 2. TEST `add_liquidity` (First Depositor) ---
     it("Adds the initial liquidity to the pool", async () => {
-        // --- Setup ---
+        // Setup user token accounts and mint tokens
         userTokenAccountA = await createAssociatedTokenAccount(provider.connection, payer.payer, mintA, payer.publicKey);
         userTokenAccountB = await createAssociatedTokenAccount(provider.connection, payer.payer, mintB, payer.publicKey);
 
@@ -90,7 +90,7 @@ describe("encode_t8_dex", () => {
         const poolAccount = await program.account.pool.fetch(poolPda);
         const userLpTokenAccount = await getAssociatedTokenAddress(poolAccount.lpMint, payer.publicKey);
 
-        // --- Action ---
+        // Action
         await program.methods.addLiquidity(amountA, amountB).accounts({
             pool: poolPda,
             mintA: poolAccount.mintA,
@@ -107,25 +107,22 @@ describe("encode_t8_dex", () => {
             systemProgram: anchor.web3.SystemProgram.programId,
         }).rpc();
 
-        // --- Assertions ---
+        // Assertions
         const userLp_after = await getAccount(provider.connection, userLpTokenAccount);
-        // Expected LP tokens = sqrt(100e6 * 100e6) = 100e6
-        const expectedLpAmount = new anchor.BN(100_000_000);
+        const expectedLpAmount = new anchor.BN(100_000_000); // Expected LP tokens = sqrt(100e6 * 100e6) = 100e6
         assert.ok(new anchor.BN(userLp_after.amount).eq(expectedLpAmount), `LP amount should be ${expectedLpAmount}`);
     });
 
     // --- 3. TEST `add_liquidity` (Second Depositor) ---
     it("Adds more liquidity, respecting the pool ratio", async () => {
-        // --- Setup ---
-        // Pool now has 100 A and 100 B, so the ratio is 1:1.
-        // We will deposit 50 A and 50 B.
-        const amountA = new anchor.BN(50_000_000); // 50 tokens A
-        const amountB = new anchor.BN(50_000_000); // 50 tokens B
+        // Setup: Pool now has 100 A and 100 B (1:1 ratio). We deposit 50 A and 50 B.
+        const amountA = new anchor.BN(50_000_000);
+        const amountB = new anchor.BN(50_000_000);
 
         const poolAccount = await program.account.pool.fetch(poolPda);
         const userLpTokenAccount = await getAssociatedTokenAddress(poolAccount.lpMint, payer.publicKey);
 
-        // --- Action ---
+        // Action
         await program.methods.addLiquidity(amountA, amountB).accounts({
             pool: poolPda,
             mintA: poolAccount.mintA,
@@ -142,18 +139,85 @@ describe("encode_t8_dex", () => {
             systemProgram: anchor.web3.SystemProgram.programId,
         }).rpc();
 
-        // --- Assertions ---
-        // Vaults had 100 A and 100 B. Now they should have 150 A and 150 B.
+        // Assertions
         const vaultA_after = await getAccount(provider.connection, poolAccount.tokenVaultA);
         const vaultB_after = await getAccount(provider.connection, poolAccount.tokenVaultB);
-        assert.equal(Number(vaultA_after.amount), 150_000_000);
-        assert.equal(Number(vaultB_after.amount), 150_000_000);
+        assert.equal(Number(vaultA_after.amount), 150_000_000, "Vault A should have 150 tokens");
+        assert.equal(Number(vaultB_after.amount), 150_000_000, "Vault B should have 150 tokens");
 
         const userLp_after = await getAccount(provider.connection, userLpTokenAccount);
-        // Previous LP total = 100e6.
-        // LP to mint = amount_a * lp_supply / vault_a_balance = 50e6 * 100e6 / 100e6 = 50e6.
-        // Total user LP = 100e6 (from first deposit) + 50e6 (from second) = 150e6.
-        const expectedLpTotal = new anchor.BN(150_000_000);
+        const expectedLpTotal = new anchor.BN(150_000_000); // 100 (first deposit) + 50 (second)
         assert.ok(new anchor.BN(userLp_after.amount).eq(expectedLpTotal), `Total LP should be ${expectedLpTotal}`);
+    });
+
+    // --- 4. TEST `swap` ---
+    it("Swaps token A for token B", async () => {
+        // Setup: Pool has 150 A and 150 B. User will swap 30 A.
+        const amountIn = new anchor.BN(30_000_000);
+        const minAmountOut = new anchor.BN(1); // We expect to receive at least 1 lamport.
+
+        const poolAccount = await program.account.pool.fetch(poolPda);
+
+        // Balances before the swap
+        const userA_before = await getAccount(provider.connection, userTokenAccountA);
+        const userB_before = await getAccount(provider.connection, userTokenAccountB);
+        const vaultA_before = await getAccount(provider.connection, poolAccount.tokenVaultA);
+        const vaultB_before = await getAccount(provider.connection, poolAccount.tokenVaultB);
+
+        // Action
+        await program.methods.swap(amountIn, minAmountOut).accounts({
+            pool: poolPda,
+            mintA: poolAccount.mintA,
+            mintB: poolAccount.mintB,
+            tokenVaultA: poolAccount.tokenVaultA,
+            tokenVaultB: poolAccount.tokenVaultB,
+            user: payer.publicKey,
+            userTokenAccountIn: userTokenAccountA,
+            userTokenAccountOut: userTokenAccountB,
+            tokenProgram: TOKEN_PROGRAM_ID,
+        }).rpc();
+
+        // Balances after the swap
+        const userA_after = await getAccount(provider.connection, userTokenAccountA);
+        const userB_after = await getAccount(provider.connection, userTokenAccountB);
+        const vaultA_after = await getAccount(provider.connection, poolAccount.tokenVaultA);
+        const vaultB_after = await getAccount(provider.connection, poolAccount.tokenVaultB);
+
+        // 1. User's token A balance should decrease by amountIn.
+        assert.equal(
+            Number(userA_before.amount) - Number(userA_after.amount),
+            amountIn.toNumber(),
+            "User A account balance change is incorrect"
+        );
+
+        // 2. Vault A balance should increase by amountIn.
+        assert.equal(
+            Number(vaultA_after.amount) - Number(vaultA_before.amount),
+            amountIn.toNumber(),
+            "Vault A balance change is incorrect"
+        );
+
+        // --- Calculate expected amount out ---
+        // amount_in = 30_000_000, fee_rate = 1/1000
+        // vault_in (A) = 150_000_000, vault_out (B) = 150_000_000
+        // fee = 30_000_000 * 1 / 1000 = 30_000
+        // amount_in_after_fee = 30_000_000 - 30_000 = 29_970_000
+        // new_vault_out = (150e6 * 150e6) / (150e6 + 29.97e6) = 125_020_837
+        // amount_out = 150_000_000 - 125_020_837 = 24_979_163
+        const expectedAmountOut = 24979163;
+
+        // 3. Vault B balance should decrease by the expected amount out.
+        assert.equal(
+            Number(vaultB_before.amount) - Number(vaultB_after.amount),
+            expectedAmountOut,
+            "Vault B balance change is incorrect"
+        );
+
+        // 4. User's token B balance should increase by the expected amount out.
+        assert.equal(
+            Number(userB_after.amount) - Number(userB_before.amount),
+            expectedAmountOut,
+            "User B account balance change is incorrect"
+        );
     });
 });

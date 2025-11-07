@@ -6,4 +6,8 @@ pub enum ErrorCode {
     ZeroAmount,
     #[msg("Deposited token amounts do not match the pool ratio.")]
     InvalidRatio,
+    #[msg("Slippage exceeded.")]
+    SlippageExceeded,
+    #[msg("An error occurred during calculation.")]
+    CalculationFailure,
 }

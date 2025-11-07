@@ -18,4 +18,8 @@ pub mod encode_t8_dex {
     pub fn add_liquidity(ctx: Context<AddLiquidity>, amount_a: u64, amount_b: u64) -> Result<()> {
         add_liquidity::handler(ctx, amount_a, amount_b)
     }
+
+    pub fn swap(ctx: Context<Swap>, amount_in: u64, min_amount_out: u64) -> Result<()> {
+        swap::handler(ctx, amount_in, min_amount_out)
+    }
 }
