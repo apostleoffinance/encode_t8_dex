@@ -14,4 +14,8 @@ pub enum ErrorCode {
     CalculationOverflow,
     #[msg("Withdrawn token amounts would be zero.")]
     ZeroWithdrawAmount,
+    #[msg("Slippage exceeded.")]
+    SlippageExceeded,
+    #[msg("An error occurred during calculation.")]
+    CalculationFailure,
 }

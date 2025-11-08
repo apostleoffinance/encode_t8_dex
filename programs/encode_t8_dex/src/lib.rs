@@ -22,4 +22,8 @@ pub mod encode_t8_dex {
     pub fn remove_liquidity(ctx: Context<RemoveLiquidity>, lp_amount: u64) -> Result<()> {
         remove_liquidity::handler(ctx, lp_amount)
     }
+
+    pub fn swap(ctx: Context<Swap>, amount_in: u64, min_amount_out: u64) -> Result<()> {
+        swap::handler(ctx, amount_in, min_amount_out)
+    }
 }

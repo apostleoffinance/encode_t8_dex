@@ -225,7 +225,105 @@ describe("encode_t8_dex", () => {
     );
   });
 
-  // --- 4. TEST `remove_liquidity` (Withdraw Proportional Share) ---
+  // --- 4. TEST `swap` ---
+  it("Swaps token A for token B", async () => {
+    // Setup: Pool has 150 A and 150 B. User will swap 30 A.
+    const amountIn = new anchor.BN(30_000_000);
+    const minAmountOut = new anchor.BN(1); // We expect to receive at least 1 lamport.
+
+    const poolAccount = await program.account.pool.fetch(poolPda);
+
+    // Balances before the swap
+    const userA_before = await getAccount(
+      provider.connection,
+      userTokenAccountA
+    );
+    const userB_before = await getAccount(
+      provider.connection,
+      userTokenAccountB
+    );
+    const vaultA_before = await getAccount(
+      provider.connection,
+      poolAccount.tokenVaultA
+    );
+    const vaultB_before = await getAccount(
+      provider.connection,
+      poolAccount.tokenVaultB
+    );
+
+    // Action
+    await program.methods
+      .swap(amountIn, minAmountOut)
+      .accounts({
+        pool: poolPda,
+        mintA: poolAccount.mintA,
+        mintB: poolAccount.mintB,
+        tokenVaultA: poolAccount.tokenVaultA,
+        tokenVaultB: poolAccount.tokenVaultB,
+        user: payer.publicKey,
+        userTokenAccountIn: userTokenAccountA,
+        userTokenAccountOut: userTokenAccountB,
+        tokenProgram: TOKEN_PROGRAM_ID,
+      })
+      .rpc();
+
+    // Balances after the swap
+    const userA_after = await getAccount(
+      provider.connection,
+      userTokenAccountA
+    );
+    const userB_after = await getAccount(
+      provider.connection,
+      userTokenAccountB
+    );
+    const vaultA_after = await getAccount(
+      provider.connection,
+      poolAccount.tokenVaultA
+    );
+    const vaultB_after = await getAccount(
+      provider.connection,
+      poolAccount.tokenVaultB
+    );
+
+    // 1. User's token A balance should decrease by amountIn.
+    assert.equal(
+      Number(userA_before.amount) - Number(userA_after.amount),
+      amountIn.toNumber(),
+      "User A account balance change is incorrect"
+    );
+
+    // 2. Vault A balance should increase by amountIn.
+    assert.equal(
+      Number(vaultA_after.amount) - Number(vaultA_before.amount),
+      amountIn.toNumber(),
+      "Vault A balance change is incorrect"
+    );
+
+    // --- Calculate expected amount out ---
+    // amount_in = 30_000_000, fee_rate = 1/1000
+    // vault_in (A) = 150_000_000, vault_out (B) = 150_000_000
+    // fee = 30_000_000 * 1 / 1000 = 30_000
+    // amount_in_after_fee = 30_000_000 - 30_000 = 29_970_000
+    // new_vault_out = (150e6 * 150e6) / (150e6 + 29.97e6) = 125_020_837
+    // amount_out = 150_000_000 - 125_020_837 = 24_979_163
+    const expectedAmountOut = 24979163;
+
+    // 3. Vault B balance should decrease by the expected amount out.
+    assert.equal(
+      Number(vaultB_before.amount) - Number(vaultB_after.amount),
+      expectedAmountOut,
+      "Vault B balance change is incorrect"
+    );
+
+    // 4. User's token B balance should increase by the expected amount out.
+    assert.equal(
+      Number(userB_after.amount) - Number(userB_before.amount),
+      expectedAmountOut,
+      "User B account balance change is incorrect"
+    );
+  });
+
+  /// --- 5. TEST `remove_liquidity` (Withdraw Proportional Share) ---
   it("Removes liquidity and returns proportional token amounts", async () => {
     // --- Setup ---
     const poolAccount = await program.account.pool.fetch(poolPda);
@@ -234,8 +332,14 @@ describe("encode_t8_dex", () => {
       payer.publicKey
     );
 
-    // The pool currently has 150 A and 150 B, LP supply = 150e6.
-    // We will burn 50e6 LP tokens (1/3 of supply), expecting 50 A and 50 B out.
+    // After the swap test:
+    // - Vault A: 180_000_000 (150 + 30 from swap)
+    // - Vault B: 125_020_837 (150 - 24_979_163 from swap)
+    // - LP supply: 150_000_000
+    // We will burn 50_000_000 LP tokens (1/3 of supply)
+    // Expected amounts out:
+    // - Token A: 180_000_000 * 50_000_000 / 150_000_000 = 60_000_000
+    // - Token B: 125_020_837 * 50_000_000 / 150_000_000 = 41_673_612
 
     const lpToBurn = new anchor.BN(50_000_000);
 
@@ -302,34 +406,38 @@ describe("encode_t8_dex", () => {
       userLpTokenAccount
     );
 
+    // Expected amounts based on proportional withdrawal (1/3 of pool)
+    const expectedAmountA = 60_000_000;
+    const expectedAmountB = 41_673_612; // Floor of 125_020_837 * 50 / 150
+
     // Expected vault decrease
     assert.equal(
       Number(vaultA_after.amount),
-      Number(vaultA_before.amount) - 50_000_000,
-      "Vault A should decrease by 50 tokens"
+      Number(vaultA_before.amount) - expectedAmountA,
+      `Vault A should decrease by ${expectedAmountA}`
     );
     assert.equal(
       Number(vaultB_after.amount),
-      Number(vaultB_before.amount) - 50_000_000,
-      "Vault B should decrease by 50 tokens"
+      Number(vaultB_before.amount) - expectedAmountB,
+      `Vault B should decrease by ${expectedAmountB}`
     );
 
     // Expected user token increase
     assert.equal(
       Number(userA_after.amount),
-      Number(userA_before.amount) + 50_000_000,
-      "User token A should increase by 50 tokens"
+      Number(userA_before.amount) + expectedAmountA,
+      `User token A should increase by ${expectedAmountA}`
     );
     assert.equal(
       Number(userB_after.amount),
-      Number(userB_before.amount) + 50_000_000,
-      "User token B should increase by 50 tokens"
+      Number(userB_before.amount) + expectedAmountB,
+      `User token B should increase by ${expectedAmountB}`
     );
 
     // Expected LP token decrease
     assert.equal(
       Number(userLp_after.amount),
-      Number(userLp_before.amount) - 50_000_000,
+      Number(userLp_before.amount) - lpToBurn.toNumber(),
       "User LP tokens should decrease by burned amount"
     );
   });
