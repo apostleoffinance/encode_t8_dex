@@ -5,7 +5,7 @@ mod state;
 use anchor_lang::prelude::*;
 use instructions::*;
 
-declare_id!("2wDXpw2R48Miu3PuFxMktrcx1w7QkyGa17CcB3Ev6VY7");
+declare_id!("5rSQi9WaBc2g5eTHM28jBcdzSB21JzxAnHRs9srXVrBT");
 
 #[program]
 pub mod encode_t8_dex {

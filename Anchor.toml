@@ -6,7 +6,7 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-encode_t8_dex = "2wDXpw2R48Miu3PuFxMktrcx1w7QkyGa17CcB3Ev6VY7"
+encode_t8_dex = "5rSQi9WaBc2g5eTHM28jBcdzSB21JzxAnHRs9srXVrBT"
 
 [registry]
 url = "https://api.apr.dev"
