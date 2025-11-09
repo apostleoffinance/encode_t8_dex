@@ -76,7 +76,7 @@ encode_t8_dex/
 
 1. **Clone the repository**
 ```bash
-git clone <repository-url>
+git clone https://github.com/encodeclub/encode_t8_dex.git
 cd encode_t8_dex
 ```
 
