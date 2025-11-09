@@ -1,6 +1,6 @@
 # Encode T8 DEX
 
-A decentralized exchange (DEX) built on Solana using the Anchor framework. This project implements an automated market maker (AMM) with constant product formula (x * y = k), similar to Uniswap V2.
+An educational decentralized exchange (DEX) project built on Solana using the Anchor framework for the Encode Bootcamp. This project implements an automated market maker (AMM) with constant product formula (x * y = k), similar to Uniswap V2.
 
 ## 🌟 Features
 
@@ -90,18 +90,15 @@ yarn install
 anchor build
 ```
 
-4. **Configure Solana for local development**
+4. **Deploy the program (optional - for local deployment)**
 ```bash
+# Configure Solana for local development
 solana config set --url localhost
-```
 
-5. **Start local validator (in a separate terminal)**
-```bash
+# Start local validator (in a separate terminal)
 solana-test-validator
-```
 
-6. **Deploy the program**
-```bash
+# Deploy the program
 anchor deploy
 ```
 
@@ -255,34 +252,6 @@ For swaps:
 ```
 amount_out = (reserve_out × amount_in_after_fee) / (reserve_in + amount_in_after_fee)
 ```
-
-### Program ID
-
-```
-5rSQi9WaBc2g5eTHM28jBcdzSB21JzxAnHRs9srXVrBT
-```
-
-### Account Space
-
-**Pool Account**: 169 bytes
-- 8 bytes: Anchor discriminator
-- 160 bytes: 5 Pubkeys (32 bytes each)
-- 1 byte: Bump seed
-
-## 📊 Test Results
-
-The test suite validates:
-
-1. **Pool Initialization**: Successfully creates pool with correct PDAs
-2. **Initial Liquidity**: Mints √(100e6 × 100e6) = 100e6 LP tokens
-3. **Subsequent Liquidity**: Enforces 1:1 ratio, mints proportional LP tokens
-4. **Swap Calculation**: 
-   - Input: 30e6 token A
-   - Fee: 30,000 (0.1%)
-   - Output: 24,979,163 token B
-5. **Liquidity Removal**: Returns proportional amounts
-   - Burns 50e6 LP tokens (1/3 of supply)
-   - Receives 60e6 token A and 41,673,612 token B
 
 ## 🤝 Contributing
 
